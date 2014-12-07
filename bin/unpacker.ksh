@@ -1,17 +1,20 @@
 #!/bin/ksh
 
 # Script dir
-SCRIPTDIR=$(dirname $0)
+SCRIPTDIR=$(dirname ${.sh.file})
+ROOTDIR=${SCRIPTDIR%/*}
+echo $ROOTDIR
 
 # Source lib
-. $SCRIPTDIR/unpack_lib.ksh 
-. $SCRIPTDIR/guessit_lib.ksh
+. $ROOTDIR/lib/unpack_lib.ksh 
+. $ROOTDIR/lib/guessit_lib.ksh
 
 # Define Tv and Movie folder (can be redefined with input args)
 TV=/data/TvShows
 MOVIE=/data/Movies
 
 function usage {
+    echo "Usage of ${.sh.file}"
     echo "-torrent <torret name>         [M]   Name/folder of the torrent"
     echo "-torrentpath <path to torrent> [M]   Path to torrent excluding name/folder"
     echo "-envfile <file>                [O]   Used to output env variables to files"
