@@ -3,26 +3,25 @@
 # Script dir
 SCRIPTDIR=$(dirname ${.sh.file})
 ROOTDIR=${SCRIPTDIR%/*}
-echo $ROOTDIR
 
 # Source lib
 . $ROOTDIR/lib/unpack_lib.ksh 
 . $ROOTDIR/lib/guessit_lib.ksh
 
-# Define Tv and Movie folder (can be redefined with input args)
-TV=/data/TvShows
-MOVIE=/data/Movies
-
 function usage {
     echo "Usage of ${.sh.file}"
-    echo "-torrent <torret name>         [M]   Name/folder of the torrent"
-    echo "-torrentpath <path to torrent> [M]   Path to torrent excluding name/folder"
-    echo "-envfile <file>                [O]   Used to output env variables to files"
-    echo "                                     usable for Jenkins"
-    echo "-no                            [O]   Dummys the script, for debuging"
-    echo "-tvfolder <folder>             [O]   Override hardcoded tv folder"
-    echo "-moviefolder <folder>          [O]   Override hardcoded movie folder"
+    echo "  -torrent <torret name>            [M]   Name/folder of the torrent"
+    echo "  -torrentpath <path to torrent>    [M]   Path to torrent excluding name/folder"
+    echo "  -envfile <file>                   [O]   Used to output env variables to files"
+    echo "                                          usable for Jenkins"
+    echo "  -guessitopt \"<guessit options>\"   [O]   Guessit passthrough options"
+    echo "  -no                               [O]   Dummys the script, for debuging"
+    echo "  -tvfolder <folder>                [MO]  Extraction path for TvShows"
+    echo "  -moviefolder <folder>             [MO]  Extraction path for Movies"
+    echo "                                          If only -tvfolder or -moviefolder is"
+    echo "                                          is present type will be forced to that type"
     echo ""
+    echo "  -help                                   show this help information"
     echo "M=mandatory, O=optional"
     exit 1
 }
@@ -37,6 +36,8 @@ while [ "$1" ]; do
        -no)           DUMMY=echo                         ;;
        -tvfolder)     TV="$2"; shift 1                   ;;
        -moviefolder)  MOVIE="$2"; shift 1                ;;
+       -guessitopt)   GUESSITOPT="$2"; shift 1           ;;
+       -help)         usage                              ;;
        *)             echo "Strange input" && usage      ;;
     esac
     shift 1
@@ -47,9 +48,28 @@ if [[ "$TORRENT" == "" || "$TORRENTPATH" == "" ]]; then
     echo "Torrent or Torrentpath is undefined"
     usage
 fi
-set -x
+# Verify folders
+if [[ $TV == "" && $MOVIE == "" ]]; then
+    echo "Missing -tvfolder and/or -moviefolder"
+    usage
+elif [[ $TV != "" && $MOVIE != "" ]]; then
+    TYPE=""
+elif [[ $TV != "" && $MOVIE == "" ]]; then
+    TYPE=episode
+elif [[ $TV == "" && $MOVIE != "" ]]; then
+    TYPE=movie
+fi
+
+# Set guessit options
+if [[ $GUESSITOPT != "" ]]; then
+    echo "guessit options overridden (execpt -n) with $GUESSITOPT"
+elif [[ $TYPE != "" ]]; then
+    GUESSITOPT="-t $TYPE"
+    echo "guessit options: $GUESSITOPT"
+fi
+
 # Guess torrent ($type $series $season $year inherent from guessit_lib function)
-guessit $TORRENT 
+guessit $TORRENT "$GUESSITOPT" 
 [[ $? != 0 ]] && echo "guessit did not work!" && return 1
 if [[ "$type" == "unknown" ]]; then
     # Try with .mkv

@@ -16,14 +16,15 @@ function unknown {
 
 function guessit {
     unset type series year season
-    typeset TORRENT
+    typeset TORRENT GUESSITOPT
     [[ "$1" == "" ]] && echo "Missing input to guessit" && return 1
+    GUESSITOPT="-n $2"
     TORRENT=$1
     unknown "$TORRENT"
     if [[ $? == 0 ]]; then
         return 0
     fi
-    python -m guessit "$TORRENT" | while read line; do
+    python -m guessit $GUESSITOPT "$TORRENT" | while read line; do
         echo $line | sed 's/://g' | while read guessindicator key value; do
             case $key in
                 *type*)        type=$value   ;;
