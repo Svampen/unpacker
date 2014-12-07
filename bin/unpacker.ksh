@@ -11,16 +11,30 @@ SCRIPTDIR=$(dirname $0)
 TV=/data/TvShows
 MOVIE=/data/Movies
 
+function usage {
+    echo "-torrent <torret name>         [M]   Name/folder of the torrent"
+    echo "-torrentpath <path to torrent> [M]   Path to torrent excluding name/folder"
+    echo "-envfile <file>                [O]   Used to output env variables to files"
+    echo "                                     usable for Jenkins"
+    echo "-no                            [O]   Dummys the script, for debuging"
+    echo "-tvfolder <folder>             [O]   Override hardcoded tv folder"
+    echo "-moviefolder <folder>          [O]   Override hardcoded movie folder"
+    echo ""
+    echo "M=mandatory, O=optional"
+    exit 1
+}
+
+[[ $1 == "" ]] && usage
 #Input data
 while [ "$1" ]; do
     case $1 in
-       -torrent)      TORRENT="$2"; shift 1     ;;
-       -torrentpath)  TORRENTPATH="$2"; shift 1 ;;
-       -envfile)      ENVFILE="$2"; shift 1     ;;
-       -no)           DUMMY=echo                ;;
-       -tvfolder)     TV="$2"; shift 1          ;;
-       -moviefolder)  MOVIE="$2"; shift 1       ;;
-       *)             echo "Strange input"      ;;
+       -torrent)      TORRENT="$2"; shift 1              ;;
+       -torrentpath)  TORRENTPATH="$2"; shift 1          ;;
+       -envfile)      ENVFILE="$2"; shift 1              ;;
+       -no)           DUMMY=echo                         ;;
+       -tvfolder)     TV="$2"; shift 1                   ;;
+       -moviefolder)  MOVIE="$2"; shift 1                ;;
+       *)             echo "Strange input" && usage      ;;
     esac
     shift 1
 done
@@ -28,7 +42,7 @@ done
 # Verify input data
 if [[ "$TORRENT" == "" || "$TORRENTPATH" == "" ]]; then
     echo "Torrent or Torrentpath is undefined"
-    return 1
+    usage
 fi
 set -x
 # Guess torrent ($type $series $season $year inherent from guessit_lib function)
