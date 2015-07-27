@@ -87,29 +87,43 @@ class Torrent:
         self.files = find_files(self.torrent)
 
 # Find all relavante files in the torrent directory
-def find_files(path):
+def find_files(pathorfile):
     files = dict([('rar', []), ('video', [])])
-    for dirname, dirnames, filenames in os.walk(path):
+    if os.path.isfile(pathorfile):
+        file_check(pathorfile, os.path.dirname(pathorfile), files)
+        
+    for dirname, dirnames, filenames in os.walk(pathorfile):
         for subdirname in dirnames:
-            # ignore directories (don't walk into them)
+            # ignore certain directories (don't walk into them)
             regex = "sample"
             m = re.match(regex, subdirname, re.IGNORECASE)
-            if m.group():
-                dirnames.remove(m.group())
-            print(os.path.join(dirname, subdirname))
+            if m:
+                dirnames.remove(subdirname)
         for filename in filenames:
-            if filename.endswith(".rar"):
-                #TODO: check for part*.rar files
-                files['rar'].append(os.path.join(dirname, filename))
-            elif filename.endswith((".mkv", ".avi", ".mp4")):
-                files['video'].append(os.path.join(dirname, filename))
-            print(os.path.join(dirname, filename))
+            file_check(filename, dirname, files)
+
     return files
+
+def file_check(filename, dirname, files):
+    # Find rar files
+    if filename.lower().endswith(".rar"):
+        # See if any of the rar files are "part" files
+        m = re.search("\.part[0-9]+\.rar", filename, re.IGNORECASE)
+        if m:
+            # We only need the part1.rar file
+            if m.group().lower() == ".part1.rar":
+                files['rar'].append(os.path.join(dirname, filename))
+        else:
+            # Adding the rar file
+            files['rar'].append(os.path.join(dirname, filename))
+    # Find any videos by the known file extensions
+    elif filename.lower().endswith((".mkv", ".avi", ".mp4")):
+        files['video'].append(os.path.join(dirname, filename))
     
         
 torrent, dest, label = args()
 t = Torrent(torrent, dest, label)
 print(t.torrent, t.dest, t.label)
 t.collect_info()
-print(t.files['rar'])
-print(t.files['video'])
+print("rarfiles", t.files['rar'])
+print("video files", t.files['video'])
