@@ -101,11 +101,7 @@ def find_files(path):
             if filename.endswith(".rar"):
                 #TODO: check for part*.rar files
                 files['rar'].append(os.path.join(dirname, filename))
-            elif filename.endswith(".mkv"):
-                files['video'].append(os.path.join(dirname, filename))
-            elif filename.endswith(".avi"):
-                files['video'].append(os.path.join(dirname, filename))
-            elif filename.endswith(".mp4"):
+            elif filename.endswith((".mkv", ".avi", ".mp4")):
                 files['video'].append(os.path.join(dirname, filename))
             print(os.path.join(dirname, filename))
     return files
