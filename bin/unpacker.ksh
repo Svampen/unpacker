@@ -69,12 +69,12 @@ elif [[ $TYPE != "" ]]; then
 fi
 
 # Guess torrent ($type $series $season $year inherent from guessit_lib function)
-guessit $TORRENT "$GUESSITOPT" 
+guessit "$TORRENT" "$GUESSITOPT" 
 [[ $? != 0 ]] && echo "guessit did not work!" && return 1
 if [[ "$type" == "unknown" ]]; then
     # Try with .mkv
     TORRENTFILE="$TORRENT.mkv"
-    guessit $TORRENTFILE
+    guessit "$TORRENTFILE"
     [[ $? != 0 ]] && echo "guessit did not work!" && return 1
     echo "Torrent $TORRENT"
 fi
@@ -82,7 +82,7 @@ fi
 # Determine target folder
 if [[ "$type" == "movie" ]]; then
     echo "Torrent is a movie"
-    TARGET=$MOVIE/$TORRENT
+    TARGET="$MOVIE/$TORRENT"
     echo "Target: $TARGET"
 elif [[ "$type" == "episode" ]]; then
     echo "Torrent is a TvShow"
@@ -90,7 +90,7 @@ elif [[ "$type" == "episode" ]]; then
         echo $series | sed 's/ /./g' | read series
         echo "Show: $series"
         echo "Season: $season"
-        if [[ $season -lt 9 ]]; then
+        if [[ $season -lt 9 || $season = 9 ]]; then
             season="0$season"
         fi
         if [[ "$year" != "" && "$year" != unknown ]]; then
@@ -111,32 +111,32 @@ fi
 [[ $TARGET == "" ]] && echo "Target missing for $TORRENT" && return 1
 
 # Determine file format
-if [[ -d $TORRENTPATH/$TORRENT ]]; then
-    find $TORRENTPATH/$TORRENT -type f -name *.rar | grep -q '.rar'
+if [[ -d "$TORRENTPATH/$TORRENT" ]]; then
+    find "$TORRENTPATH/$TORRENT" -type f -name *.rar | grep -q '.rar'
     if [[ $? == 0 ]]; then
         echo "Torrent is packed as rar files"
         # Unpack torrent to target
-        $DUMMY unpack $TORRENTPATH/$TORRENT $TARGET
+        $DUMMY unpack "$TORRENTPATH/$TORRENT" $TARGET
         [[ $? != 0 ]] && echo "Unpacking failed!" && return 1
     else
         echo "Torrent isn't packed as a rar files"
-        find $TORRENTPATH/$TORRENT -type f \( -iname \*.mkv -o -iname \*.avi -o -iname \*.mp4 \) | while read file; do
+        find "$TORRENTPATH/$TORRENT" -type f \( -iname \*.mkv -o -iname \*.avi -o -iname \*.mp4 \) | while read file; do
             $DUMMY mkdir -p $TARGET
             echo "Copying $file to $TARGET"
-            $DUMMY cp $file $TARGET
+            $DUMMY cp "$file" $TARGET
         done
     fi
 elif [[ -f $TORRENTPATH/$TORRENT ]]; then
     $DUMMY mkdir -p $TARGET
     echo "Copying $TORRENTPATH/$TORRENT to $TARGET"
-    $DUMMY cp $TORRENTPATH/$TORRENT $TARGET
+    $DUMMY cp "$TORRENTPATH/$TORRENT" $TARGET
 else
     echo "$TORRENT at $TORRENTPATH doesn't exist"
     return 1
 fi
 
 # Set chmod g+rwx
-$DUMMY chmod -R g+rwx $TARGET
+$DUMMY chmod -R g+rwx "$TARGET"
 
 # Log variable to file for jenkins
 if [[ "$ENVFILE" && "$DUMMY" != echo ]]; then
