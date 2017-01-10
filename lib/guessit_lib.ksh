@@ -18,22 +18,22 @@ function guessit {
     unset type series year season
     typeset TORRENT GUESSITOPT
     [[ "$1" == "" ]] && echo "Missing input to guessit" && return 1
-    GUESSITOPT="-n $2"
+    GUESSITOPT="-n -y $2"
     TORRENT=$1
     unknown "$TORRENT"
     if [[ $? == 0 ]]; then
         return 0
     fi
-    python -m guessit $GUESSITOPT "$TORRENT" | while read line; do
-        echo $line | sed 's/://g' | while read guessindicator key value; do
+    python -m guessit $GUESSITOPT "$TORRENT" | while read key value; do
+        echo "Info: $key $value"
             case $key in
                 *type*)        type=$value   ;;
                 *series*)      series=$value ;;
                 *year*)        year=$value   ;;
                 *season*)      season=$value ;;
+                *title*)       series=$value ;;
                 *)                         ;;
             esac
-        done
     done
     echo "$type" | sed -e 's/"//g' -e 's/,//g' | read type
     echo "$series" | sed -e 's/"//g' -e 's/,//g' | read series
