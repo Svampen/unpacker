@@ -1,5 +1,5 @@
 from unrar import rarfile
-import sys, getopt, os, re
+import sys, getopt, os, re, guessit, rarfile
 
 # Usage information
 def usage():
@@ -9,7 +9,8 @@ def usage():
     print("-t, --torrent <full path to torrent>")
 
 def args():
-    torrent = ""
+    torrentpath = ""
+    torrentname = ""
     label = ""
     dest = ""
     try:
@@ -34,12 +35,12 @@ def args():
                 label = verify_label(arg)
             elif opt in ("-t", "--torrent"):
                 print("Torrent:", arg)
-                torrent = verify_torrent(arg)
+                torrentpath, torrentname = verify_torrent(arg)
     else:
         usage()
         sys.exit(2)
 
-    if torrent == "":
+    if torrentpath == "" or torrentname == "":
         print("Torrent argument is missing")
         usage()
         sys.exit(2)
@@ -51,7 +52,7 @@ def args():
         print("Destination argument is missing")
         usage()
         sys.exit(2)
-    return torrent, dest, label
+    return torrentpath, torrentname, dest, label
 
 def verify_label(label):
     if label == "tv" or label == "movie":
@@ -71,7 +72,8 @@ def verify_dest(dest):
 
 def verify_torrent(torrent):
     if os.path.exists(torrent):
-        return torrent
+        torrentpath, torrentname = os.path.split(torrent)
+        return torrentpath, torrentname
     else:
         print("Torrent path doesn't exist:", torrent)
         usage()
@@ -79,20 +81,23 @@ def verify_torrent(torrent):
 
 # Torrent class
 class Torrent:
-    def __init__(self, torrent, dest, label):
-        self.torrent = torrent
+    def __init__(self, path, name, dest, label):
+        self.name = name
+        self.path = path
         self.dest = dest
         self.label = label
     def collect_info(self):
-        self.files = find_files(self.torrent)
+        self.files = find_files(os.path.join(self.path, self.name))
+        guessit_info(self)
 
 # Find all relavante files in the torrent directory
-def find_files(pathorfile):
+def find_files(dirorfile):
+    print("find files in ", dirorfile)
     files = dict([('rar', []), ('video', [])])
-    if os.path.isfile(pathorfile):
-        file_check(pathorfile, os.path.dirname(pathorfile), files)
+    if os.path.isfile(dirorfile):
+        file_check(dirorfile, os.path.dirname(dirorfile), files)
         
-    for dirname, dirnames, filenames in os.walk(pathorfile):
+    for dirname, dirnames, filenames in os.walk(dirorfile):
         for subdirname in dirnames:
             # ignore certain directories (don't walk into them)
             regex = "sample"
@@ -101,7 +106,9 @@ def find_files(pathorfile):
                 dirnames.remove(subdirname)
         for filename in filenames:
             file_check(filename, dirname, files)
-
+    # If rar file(s) exist, look into the rar file for video files
+    for rar in files['rar']:
+        rar_check(rar)
     return files
 
 def file_check(filename, dirname, files):
@@ -119,11 +126,28 @@ def file_check(filename, dirname, files):
     # Find any videos by the known file extensions
     elif filename.lower().endswith((".mkv", ".avi", ".mp4")):
         files['video'].append(os.path.join(dirname, filename))
-    
+
+def rar_check(rar):
+    files = rarfile.Rarfile(rar)
+    for f in files:
+        print(f.filename)
+
+def guessit_info(torrent):
+    # Run guessit based on label
+    if torrent.label == 'tv':
+        print("torrent is a tv show")
+        guess = guessit.guess_episode_info(torrent.name)
+        print(guess)
+        # TODO: Check if show has episodeNumber or not. If not then
+        # this may be a season pack Friends.S01.720p.Bluray-group
+    elif torrent.label == 'movie':
+        print("torrent is a movie")
+        guess = guessit.guess_movie_info(torrent.name)
+        print(guess)
         
-torrent, dest, label = args()
-t = Torrent(torrent, dest, label)
-print(t.torrent, t.dest, t.label)
+torrentpath, torrentname, dest, label = args()
+t = Torrent(torrentpath, torrentname, dest, label)
+print(t.path, t.name, t.dest, t.label)
 t.collect_info()
 print("rarfiles", t.files['rar'])
 print("video files", t.files['video'])
