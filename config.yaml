@@ -1,0 +1,14 @@
+---
+rules:
+- hdtv:
+    screen_size: 720p+
+    type: tv
+    extraction_location: "/home/scripter/tmp/TvShows"
+- hdtv2:
+    screen_size: 480p+
+    type: tv
+    extraction_location: "/mnt/media/TvShows"
+- movies:
+    screen_size: 720p
+    type: movie
+    extraction_location: "/mnt/media/Movies"
