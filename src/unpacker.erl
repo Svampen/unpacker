@@ -44,7 +44,7 @@ unpacker(Directory, _Options) ->
     case match(Guessit, Rules) of
         {match, Rule, ExtractionLocation} ->
             lager:info("Found matching rule:~p~n", [Rule]),
-            Destination = create_finale_destination(Guessit, ExtractionLocation),
+            Destination = create_final_destination(Guessit, ExtractionLocation),
             unpack(Directory, Files, Destination);
         {error, Reason} ->
             lager:error("Match error:~p~n", [Reason]),
@@ -209,10 +209,10 @@ split_screen_size(ScreenSize) ->
                                                      string:len(ScreenSize)-1))}
     end.
 
-create_finale_destination(#{?GuessitType := ?GuessitTv,
-                            ?GuessitSeason := GuessitSeason,
-                            ?GuessitTitle := GuessitTitle},
-                          ExtractionLocation) ->
+create_final_destination(#{?GuessitType := ?GuessitTv,
+                           ?GuessitSeason := GuessitSeason,
+                           ?GuessitTitle := GuessitTitle},
+                         ExtractionLocation) ->
     Title = string:join(string:tokens(bitstring_to_list(GuessitTitle), " "), "."),
     Season =
     if
@@ -222,9 +222,9 @@ create_finale_destination(#{?GuessitType := ?GuessitTv,
             lists:concat(["S", GuessitSeason])
     end,
     filename:join([ExtractionLocation, Title, Season]);
-create_finale_destination(#{?GuessitType := ?GuessitMovie,
-                            ?GuessitTitle := GuessitTitle},
-                          ExtractionLocation) ->
+create_final_destination(#{?GuessitType := ?GuessitMovie,
+                           ?GuessitTitle := GuessitTitle},
+                         ExtractionLocation) ->
     Title = string:join(string:tokens(bitstring_to_list(GuessitTitle), " "), "."),
     filename:join([ExtractionLocation, Title]).
 
