@@ -16,66 +16,55 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Unpack Torrent
-%% 1. Lookup if torrent contains rar files or just video files
+%% Unpack/copy content from 'Directory' to location from matching rule
+%% 1. Lookup if directory contains rar files or just video files
 %% 2. If rar files then look inside to find which files to actually
 %%    unpack
-%% 3. Request information about torrent using guessit, requires that
+%% 3. Request information about directory using guessit, requires that
 %%    guessit is installed as REST
 %% 4. Parse rules with guessit information as input to determine
-%%    where torrent should be unpacked to
-%% 5. Unpack torrent to destination
+%%    where directory content should be unpacked/copy to
+%% 5. Unpack/copy directory content to destination
 %%
 %%
-%% /mnt/media/torrents/Code.Black.S02E16.PROPER.720p.HDTV.x264-KILLERS
 %% @end
 %%--------------------------------------------------------------------
--spec(unpacker(Torrent :: string(), Options :: list()) ->
+-spec(unpacker(Directory :: string(), Options :: list()) ->
     ok | {error, Reason :: term()}).
-unpacker(Torrent, _Options) ->
+unpacker(Directory, _Options) ->
     application:ensure_all_started(gun),
     application:start(yamerl),
     lager:start(),
     lager:set_loglevel(lager_backend_console, info),
-    %% TODO: Validate Torrent path
-    case validate(Torrent) of
-        ok ->
-            %% TODO: Read rules
-            case rules() of
-                {ok, Rules} ->
-                    %% TODO: Find rar or video files in Torrent path
-                    Files = probe_torrent(Torrent),
-                    %% TODO: Run guessit with Torrent as input
-                    case guessit(Torrent) of
-                        {error, Reason} ->
-                            {error, Reason};
-                        Guessit ->
-                            %% TODO: Match rules with guessit information as input
-                            lager:info("Guessit:~p~n", [Guessit]),
-                            case match(Guessit, Rules) of
-                                {match, Rule, ExtractionLocation} ->
-                                    lager:info("Found matching rule:~p~n", [Rule]),
-                                    %% TODO: Create finale destination of Torrent content ExtractionLocation + Movie/TvShow(+S[Season])
-                                    Destination = create_finale_destination(Guessit, ExtractionLocation),
-                                    %% TODO: unpack torrent
-                                    unpack(Torrent, Files, Destination);
-                                {error, Reason} ->
-                                    lager:error("Match error:~p~n", [Reason])
-                            end
-                    end;
-                {error, Reason} ->
-                    {error, Reason}
-            end;
+    %% TODO: Validate Directory
+    ok = validate(Directory),
+    %% TODO: Read rules
+    Rules = rules(),
+    %% TODO: Find rar or video files in directory path
+    Files = probe_directory(Directory),
+    %% TODO: Run guessit with directory as input
+    Guessit = guessit(Directory),
+    %% TODO: Match rules with guessit information as input
+    lager:info("Guessit:~p~n", [Guessit]),
+    case match(Guessit, Rules) of
+        {match, Rule, ExtractionLocation} ->
+            lager:info("Found matching rule:~p~n", [Rule]),
+            %% TODO: Create finale destination of directory content ExtractionLocation + Movie/TvShow(+S[Season])
+            Destination = create_finale_destination(Guessit, ExtractionLocation),
+            %% TODO: unpack directory
+            unpack(Directory, Files, Destination);
         {error, Reason} ->
-            {error, Reason}
+            lager:error("Match error:~p~n", [Reason]),
+            halt(?ERULEMATCH)
     end.
 
-validate(Torrent) ->
-    case filelib:is_dir(Torrent) of
+validate(Directory) ->
+    case filelib:is_dir(Directory) of
         true ->
             ok;
         false ->
-            {error, "Direction doesn't exist"}
+            lager:error("Directory doesn't exists:~p~n", [Directory]),
+            erlang:halt(?ENODIR)
     end.
 
 rules() ->
@@ -83,23 +72,31 @@ rules() ->
     ConfigFile = ?Config,
     case yamerl_constr:file(ConfigFile) of
         [] ->
-            {error, "No data found in config file:" ++ ConfigFile};
+            lager:error("No data found in config file:~p~n", [ConfigFile]),
+            erlang:halt(?ENOCFGDATA);
         [Config] ->
             case find_rules(Config) of
                 {ok, Rules} ->
                     lager:info("Rules:~p~n", [Rules]),
                     case verify_rules(Rules) of
-                        {error, _Reason} = Error ->
-                            Error;
+                        {error, Reason} ->
+                            lager:error("Failed to verify Rules:~p~nConfig"
+                                        "file:~p~nReason:~p~n",
+                                        [Rules, ConfigFile, Reason]),
+                            erlang:halt(?EVERIFYRULES);
                         MapRules ->
                             {ok, MapRules}
                     end;
-                Error ->
-                    Error
+
+                {error, Reason} ->
+                    lager:error("Failed to parse rules in config"
+                                "file:~p~nError:~p~n", [ConfigFile, Reason]),
+                    erlang:halt(?EPARSERULES)
             end;
         _Config ->
-            {error,
-             "To many yaml documents found in config file:" ++ ConfigFile}
+            lager:error("To many yaml documents found in config file:~p~n",
+                        [ConfigFile]),
+            erlang:halt(?EYAMLDOCS)
     end.
 find_rules([]) ->
     {error, "No Rules found"};
@@ -125,34 +122,38 @@ verify_rule_options(#{"type" := _, "extraction_location" := _}) ->
 verify_rule_options(_RuleOptions) ->
     false.
 
-probe_torrent(Torrent) ->
-    %% TODO: Verify that  there are video files in either rarfile or in torrent
+probe_directory(Directory) ->
+    %% TODO: Verify that  there are video files in either rarfile or in directory
     RarFun =
     fun(RarFile, Acc) ->
         VideoFiles = unrar:list(RarFile),
         Acc ++ [#{rar_file => RarFile, video_files => VideoFiles}]
     end,
-    RarFiles = filelib:fold_files(Torrent, ?RegexRar, true, RarFun, []),
+    RarFiles = filelib:fold_files(Directory, ?RegexRar, true, RarFun, []),
     VideoFun =
     fun(VideoFile, Acc) ->
         Acc ++ [VideoFile]
     end,
-    VideoFiles = filelib:fold_files(Torrent, ?RegexVideo, true, VideoFun, []),
+    VideoFiles = filelib:fold_files(Directory, ?RegexVideo, true, VideoFun, []),
     #{rar_files => RarFiles, video_files => VideoFiles}.
 
-guessit(Torrent) ->
-    TorrentName = filename:basename(Torrent),
+guessit(Directory) ->
+    DirectoryName = filename:basename(Directory),
     case gun:open("192.168.88.166", 5000) of
         {ok, ConnPid} ->
             {ok, _} = gun:await_up(ConnPid),
-            StreamRef = gun:get(ConnPid, "/?filename=" ++ TorrentName),
+            StreamRef = gun:get(ConnPid, "/?filename=" ++ DirectoryName),
             receive
                 {gun_data, ConnPid, StreamRef, fin, Response} ->
                     jiffy:decode(Response, [return_maps])
             after
                 2000 ->
-                    {error, "Connection to guessit timed out"}
-            end
+                    lager:error("Connection to guessit timed out~n"),
+                    erlang:halt(?EGUESSITTIMEOUT)
+            end;
+        {error, Reason} ->
+            lager:info("Failed to open connection to guessit:~p~n", [Reason]),
+            erlang:halt(?EGUESSITCONNECT)
     end.
 match(_, []) ->
     {error, "No rule matching Guessit information"};
@@ -236,7 +237,7 @@ create_finale_destination(#{?GuessitType := ?GuessitMovie,
     Title = string:join(string:tokens(bitstring_to_list(GuessitTitle), " "), "."),
     filename:join([ExtractionLocation, Title]).
 
-unpack(_Torrent, #{rar_files := RarFiles, video_files := VideoFiles},
+unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
        Destination) ->
     %% TODO: create destination if not already exists
     lager:info("Ensuring that Destination exists:~p~n", [Destination]),
