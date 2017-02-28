@@ -36,22 +36,15 @@ unpacker(Directory, _Options) ->
     application:start(yamerl),
     lager:start(),
     lager:set_loglevel(lager_backend_console, info),
-    %% TODO: Validate Directory
     ok = validate(Directory),
-    %% TODO: Read rules
     Rules = rules(),
-    %% TODO: Find rar or video files in directory path
     Files = probe_directory(Directory),
-    %% TODO: Run guessit with directory as input
     Guessit = guessit(Directory),
-    %% TODO: Match rules with guessit information as input
     lager:info("Guessit:~p~n", [Guessit]),
     case match(Guessit, Rules) of
         {match, Rule, ExtractionLocation} ->
             lager:info("Found matching rule:~p~n", [Rule]),
-            %% TODO: Create finale destination of directory content ExtractionLocation + Movie/TvShow(+S[Season])
             Destination = create_finale_destination(Guessit, ExtractionLocation),
-            %% TODO: unpack directory
             unpack(Directory, Files, Destination);
         {error, Reason} ->
             lager:error("Match error:~p~n", [Reason]),
@@ -68,7 +61,6 @@ validate(Directory) ->
     end.
 
 rules() ->
-    %% TODO: Validate rules
     ConfigFile = ?Config,
     case yamerl_constr:file(ConfigFile) of
         [] ->
@@ -123,7 +115,6 @@ verify_rule_options(_RuleOptions) ->
     false.
 
 probe_directory(Directory) ->
-    %% TODO: Verify that  there are video files in either rarfile or in directory
     RarFun =
     fun(RarFile, Acc) ->
         VideoFiles = unrar:list(RarFile),
@@ -239,7 +230,6 @@ create_finale_destination(#{?GuessitType := ?GuessitMovie,
 
 unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
        Destination) ->
-    %% TODO: create destination if not already exists
     lager:info("Ensuring that Destination exists:~p~n", [Destination]),
     case filelib:is_dir(Destination) of
         true ->
@@ -248,7 +238,6 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
             ok = filelib:ensure_dir(Destination),
             ok = file:make_dir(Destination)
     end,
-    %% TODO: unpack all video files in rar files to destination
     lists:foreach(
         fun(#{rar_file := RarFile,
                 video_files := RarVideoFiles}) ->
@@ -259,7 +248,6 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
                ok
         end,
         RarFiles),
-    %% TODO: cp all video files to destination
     lists:foreach(
         fun(VideoFile) ->
             lager:info("Copying VideoFile(~p) to destination:~p~n",
