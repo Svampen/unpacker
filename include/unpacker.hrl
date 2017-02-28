@@ -24,3 +24,14 @@
 
 -define(RuleTv, "tv").
 -define(RuleMovie, "movie").
+
+
+%% Halt reasons
+-define(ENODIR, 1).
+-define(ENOCFGDATA, 2).
+-define(EPARSERULES, 3).
+-define(EYAMLDOCS, 4).
+-define(EVERIFYRULES, 5).
+-define(EGUESSITCONNECT, 6).
+-define(EGUESSITTIMEOUT, 7).
+-define(ERULEMATCH, 8).
