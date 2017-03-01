@@ -1,0 +1,18 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa /home/scripter/git/unpacker/_build/default/lib/unpacker/ebin  /home/scripter/git/unpacker/_build/default/lib/cowlib/ebin  /home/scripter/git/unpacker/_build/default/lib/eunit_addons/ebin  /home/scripter/git/unpacker/_build/default/lib/goldrush/ebin  /home/scripter/git/unpacker/_build/default/lib/gun/ebin  /home/scripter/git/unpacker/_build/default/lib/jiffy/ebin  /home/scripter/git/unpacker/_build/default/lib/lager/ebin  /home/scripter/git/unpacker/_build/default/lib/mockgyver/ebin  /home/scripter/git/unpacker/_build/default/lib/parse_trans/ebin  /home/scripter/git/unpacker/_build/default/lib/ranch/ebin  /home/scripter/git/unpacker/_build/default/lib/unrar/ebin  /home/scripter/git/unpacker/_build/default/lib/yamerl/ebin
+
+main([Directory|Rest]) ->
+    Options = build_options(Rest, #{}),
+    io:format("options:~p~n", [Options]),
+    unpacker:unpacker(Directory, Options).
+
+build_options([], Options) ->
+    Options;
+build_options(["-test", Test|Rest], Options) ->
+    build_options(Rest, maps:put(test, Test, Options));
+build_options(["-config", ConfigFile|Rest], Options) ->
+    build_options(Rest, maps:put(config_file, ConfigFile, Options));
+build_options(Options, _) ->
+    io:format("Unsupported options found:~p~n", [Options]),
+    erlang:halt(1).
