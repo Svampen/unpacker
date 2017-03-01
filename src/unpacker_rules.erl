@@ -59,6 +59,17 @@ verify_rule_options(_RuleOptions) ->
 
 match(_, []) ->
     {error, "No rule matching Guessit information"};
+match(#{?GuessitType := ?GuessitMovie}=Guessit,
+    [#{rule := Rule, rule_opts :=
+    #{"type" := ?RuleMovie,
+      "extraction_location" := ExtractionLocation}=RuleOptions}|Rest]) ->
+    lager:info("Processing Rule:~p~nRule Options:~p~n", [Rule, RuleOptions]),
+    case match_rule_options(maps:to_list(RuleOptions), Guessit) of
+        true ->
+            {match, Rule, ExtractionLocation};
+        false ->
+            match(Guessit, Rest)
+    end;
 match(#{?GuessitType := ?GuessitTv}=Guessit,
       [#{rule := Rule, rule_opts :=
       #{"type" := ?RuleTv,
@@ -75,7 +86,7 @@ match(Guessit, [_Rule|Rest]) ->
 
 match_rule_options([], _Guessit) ->
     true;
-match_rule_options([{"screen_size", RuleScreenSize}| Rest],
+match_rule_options([{"screen_size", RuleScreenSize}|Rest],
                    #{?GuessitScreenSize := GuessitScreenSize}=Guessit) ->
     {Range, RuleScreenSizeInt} = split_screen_size(RuleScreenSize),
     {_, GuessitScreenSizeInt} = split_screen_size(bitstring_to_list(GuessitScreenSize)),
@@ -103,6 +114,14 @@ match_rule_options([{"screen_size", RuleScreenSize}| Rest],
                 true ->
                     false
             end
+    end;
+match_rule_options([{"regex", Regex}|Rest], #{?GuessitTitle := Title}=Guessit) ->
+    TitleString = bitstring_to_list(Title),
+    case re:run(TitleString, Regex) of
+        {match, _} ->
+            match_rule_options(Rest, Guessit);
+        nomatch ->
+            false
     end;
 match_rule_options([_RuleOption|Rest], Guessit) ->
     match_rule_options(Rest, Guessit).
