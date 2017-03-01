@@ -29,17 +29,19 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(unpacker(Directory :: string(), Options :: list()) ->
+-spec(unpacker(Directory :: string(), Options :: map()) ->
     ok | {error, Reason :: term()}).
-unpacker(Directory, _Options) ->
+unpacker(Directory, Options) ->
     application:ensure_all_started(gun),
     application:start(yamerl),
     lager:start(),
-    lager:set_loglevel(lager_backend_console, info),
+    lager:set_loglevel(lager_backend_console, debug),
     ok = validate(Directory),
-    Rules = rules(),
+    Config = get_config(Options),
+    Rules = rules(Config),
+    Settings = settings(Config),
     Files = probe_directory(Directory),
-    Guessit = guessit(Directory),
+    Guessit = guessit(Directory, Settings),
     lager:info("Guessit:~p~n", [Guessit]),
     case match(Guessit, Rules) of
         {match, Rule, ExtractionLocation} ->
@@ -48,7 +50,7 @@ unpacker(Directory, _Options) ->
             unpack(Directory, Files, Destination);
         {error, Reason} ->
             lager:error("Match error:~p~n", [Reason]),
-            halt(?ERULEMATCH)
+            halt(?ERuleMatch)
     end.
 
 validate(Directory) ->
@@ -57,38 +59,88 @@ validate(Directory) ->
             ok;
         false ->
             lager:error("Directory doesn't exists:~p~n", [Directory]),
-            erlang:halt(?ENODIR)
+            erlang:halt(?ENoDir)
     end.
 
-rules() ->
-    ConfigFile = ?Config,
+get_config(#{config_file := ConfigFile}) ->
+    %% check for config file in Options
+    case filelib:is_file(ConfigFile) of
+        true ->
+            read_config(ConfigFile);
+        false ->
+            lager:error("User supplied config file not found:~p~n", [ConfigFile]),
+            erlang:halt()
+    end;
+get_config(_Options) ->
+    %% Use default path for config file
+    {ok, DefaultPath} = file:get_cwd(),
+    ConfigFile = filename:join([DefaultPath, ?Config]),
+    case filelib:is_file(ConfigFile) of
+        true ->
+            read_config(ConfigFile);
+        false ->
+            lager:error("Default config file not found:~p~n", [ConfigFile]),
+            erlang:halt()
+    end.
+
+read_config(ConfigFile) ->
     case yamerl_constr:file(ConfigFile) of
         [] ->
             lager:error("No data found in config file:~p~n", [ConfigFile]),
-            erlang:halt(?ENOCFGDATA);
+            erlang:halt(?ENoCfgData);
         [Config] ->
-            case find_rules(Config) of
-                {ok, Rules} ->
-                    lager:info("Rules:~p~n", [Rules]),
-                    case verify_rules(Rules) of
-                        {error, Reason} ->
-                            lager:error("Failed to verify Rules:~p~nConfig"
-                                        "file:~p~nReason:~p~n",
-                                        [Rules, ConfigFile, Reason]),
-                            erlang:halt(?EVERIFYRULES);
-                        MapRules ->
-                            {ok, MapRules}
-                    end;
-
-                {error, Reason} ->
-                    lager:error("Failed to parse rules in config"
-                                "file:~p~nError:~p~n", [ConfigFile, Reason]),
-                    erlang:halt(?EPARSERULES)
-            end;
+            lager:debug("Found config data:~p~n", [Config]),
+            Config;
         _Config ->
             lager:error("To many yaml documents found in config file:~p~n",
                         [ConfigFile]),
-            erlang:halt(?EYAMLDOCS)
+            erlang:halt(?EYamlDocs)
+    end.
+
+settings(Config) ->
+    case find_settings(Config) of
+        {ok, Settings} ->
+            lager:info("Settings:~p~n", [Settings]),
+            build_settings(Settings, #{});
+        error ->
+            lager:error("No settings data found in config:~p~n", [Config]),
+            erlang:halt(?ENoSettingsData)
+    end.
+
+find_settings([]) ->
+    error;
+find_settings([{"settings", Settings}|_Rest]) ->
+    {ok, Settings};
+find_settings([_|Rest]) ->
+    find_settings(Rest).
+
+build_settings([], Settings) ->
+    Settings;
+build_settings([[{"guessit", GuessitOptions}]|Rest], Settings) ->
+    GuessitOptionsMap = maps:from_list(GuessitOptions),
+    UpdatedSettings = maps:put(guessit, GuessitOptionsMap, Settings),
+    build_settings(Rest, UpdatedSettings);
+build_settings([Setting|Rest], Settings) ->
+    lager:warning("Unsupported setting found:~p~n", [Setting]),
+    build_settings(Rest, Settings).
+
+rules(Config) ->
+    case find_rules(Config) of
+        {ok, Rules} ->
+            lager:info("Rules:~p~n", [Rules]),
+            case verify_rules(Rules) of
+                {error, Reason} ->
+                    lager:error("Failed to verify Rules:~p~nConfig"
+                                ":~p~nReason:~p~n",
+                                [Rules, Config, Reason]),
+                    erlang:halt(?EVerifyRules);
+                MapRules ->
+                    MapRules
+            end;
+        {error, Reason} ->
+            lager:error("Failed to parse rules in config"
+                        ":~p~nError:~p~n", [Config, Reason]),
+            erlang:halt(?EParseRules)
     end.
 find_rules([]) ->
     {error, "No Rules found"};
@@ -128,9 +180,9 @@ probe_directory(Directory) ->
     VideoFiles = filelib:fold_files(Directory, ?RegexVideo, true, VideoFun, []),
     #{rar_files => RarFiles, video_files => VideoFiles}.
 
-guessit(Directory) ->
+guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
     DirectoryName = filename:basename(Directory),
-    case gun:open("192.168.88.166", 5000) of
+    case gun:open(IP, Port) of
         {ok, ConnPid} ->
             {ok, _} = gun:await_up(ConnPid),
             StreamRef = gun:get(ConnPid, "/?filename=" ++ DirectoryName),
@@ -140,12 +192,16 @@ guessit(Directory) ->
             after
                 2000 ->
                     lager:error("Connection to guessit timed out~n"),
-                    erlang:halt(?EGUESSITTIMEOUT)
+                    erlang:halt(?EGuessitTimeout)
             end;
         {error, Reason} ->
             lager:info("Failed to open connection to guessit:~p~n", [Reason]),
-            erlang:halt(?EGUESSITCONNECT)
-    end.
+            erlang:halt(?EGuessitConnect)
+    end;
+guessit(_, Settings) ->
+    lager:error("No guessit settings found in Settings data:~p~n", [Settings]),
+    erlang:halt(?ENoGuessitSettings).
+
 match(_, []) ->
     {error, "No rule matching Guessit information"};
 match(#{?GuessitType := ?GuessitTv}=Guessit,
@@ -242,8 +298,8 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
         fun(#{rar_file := RarFile,
                 video_files := RarVideoFiles}) ->
             lager:info("Extracting from Rar file:~p~nVideo files:~p~n",
-                       [RarFile, RarVideoFiles]),
-            unrar:extract(RarFile, RarVideoFiles, Destination);
+                       [RarFile, RarVideoFiles]);
+            %%unrar:extract(RarFile, RarVideoFiles, Destination);
            (_) ->
                ok
         end,

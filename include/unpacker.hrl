@@ -27,11 +27,14 @@
 
 
 %% Halt reasons
--define(ENODIR, 1).
--define(ENOCFGDATA, 2).
--define(EPARSERULES, 3).
--define(EYAMLDOCS, 4).
--define(EVERIFYRULES, 5).
--define(EGUESSITCONNECT, 6).
--define(EGUESSITTIMEOUT, 7).
--define(ERULEMATCH, 8).
+-define(ENoDir, 1).
+-define(ENoCfgData, 2).
+-define(EParseRules, 3).
+-define(EYamlDocs, 4).
+-define(EVerifyRules, 5).
+-define(EGuessitConnect, 6).
+-define(EGuessitTimeout, 7).
+-define(ERuleMatch, 8).
+-define(ENoConfigFile, 9).
+-define(ENoGuessitSettings, 10).
+-define(ENoSettingsData, 11).
