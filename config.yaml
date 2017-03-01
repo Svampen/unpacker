@@ -16,3 +16,4 @@ settings:
   - guessit:
       ip: 192.168.88.166
       port: 5000
+  - regex: "^((?!sample)(?!part).)*\.(mkv|mp4)"
