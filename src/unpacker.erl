@@ -10,6 +10,7 @@
 -author("Stefan Hagdahl").
 
 -include("unpacker.hrl").
+-include_lib("mockgyver/include/mockgyver.hrl").
 
 %% API
 -export([unpacker/2]).
@@ -36,6 +37,14 @@ unpacker(Directory, Options) ->
     application:start(yamerl),
     lager:start(),
     lager:set_loglevel(lager_backend_console, debug),
+    case Options of
+        #{test := yes} ->
+            stub(Directory, Options);
+        _ ->
+            start(Directory, Options)
+    end.
+
+start(Directory, Options) ->
     ok = validate_dir(Directory),
     {Rules, Settings} = unpacker_config:get(Options),
     Files = probe_directory(Directory, Settings),
@@ -57,7 +66,7 @@ validate_dir(Directory) ->
             ok;
         false ->
             lager:error("Directory doesn't exists:~p~n", [Directory]),
-            erlang:halt(?ENoDir)
+            unpacker_misc:halt(?ENoDir)
     end.
 
 probe_directory(Directory, Settings) ->
@@ -94,15 +103,15 @@ guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
             after
                 2000 ->
                     lager:error("Connection to guessit timed out~n"),
-                    erlang:halt(?EGuessitTimeout)
+                    unpacker_misc:halt(?EGuessitTimeout)
             end;
         {error, Reason} ->
             lager:info("Failed to open connection to guessit:~p~n", [Reason]),
-            erlang:halt(?EGuessitConnect)
+            unpacker_misc:halt(?EGuessitConnect)
     end;
 guessit(_, Settings) ->
     lager:error("No guessit settings found in Settings data:~p~n", [Settings]),
-    erlang:halt(?ENoGuessitSettings).
+    unpacker_misc:halt(?ENoGuessitSettings).
 
 create_final_destination(#{?GuessitType := ?GuessitTv,
                            ?GuessitSeason := GuessitSeason,
@@ -137,8 +146,8 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
         fun(#{rar_file := RarFile,
                 video_files := RarVideoFiles}) ->
             lager:info("Extracting from Rar file:~p~nVideo files:~p~n",
-                       [RarFile, RarVideoFiles]);
-            %%unrar:extract(RarFile, RarVideoFiles, Destination);
+                       [RarFile, RarVideoFiles]),
+            unrar:extract(RarFile, RarVideoFiles, Destination);
            (_) ->
                ok
         end,
@@ -147,8 +156,24 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
         fun(VideoFile) ->
             lager:info("Copying VideoFile(~p) to destination:~p~n",
                        [VideoFile, Destination]),
-            _CopyCommand = lists:concat(["cp ", VideoFile, " ", Destination])
-            %%os:cmd(CopyCommand)
+            unpacker_misc:copy(VideoFile, Destination)
         end,
         VideoFiles),
     ok.
+
+%% stub functions
+stub(Directory, Options) ->
+    ?MOCK(fun() ->
+        ?WHEN(unrar:extract(RarFile, RarVideoFiles, Destination) ->
+              lager:info("Extracting from ~p to ~p the following files:~p~n",
+                         [RarFile, RarVideoFiles, Destination])),
+        ?WHEN(unpacker_misc:copy(VideoFile, Destination) ->
+              lager:info("Coping ~p to ~p~n", [VideoFile, Destination])),
+        ?WHEN(unpacker:halt(Status) ->
+              begin
+              lager:info("Halting erlang with status:~p in 2 seconds~n",
+                         [Status]),
+              timer:sleep(2000)
+              end),
+        start(Directory, Options)
+        end).
