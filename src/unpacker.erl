@@ -38,7 +38,7 @@ unpacker(Directory, Options) ->
     lager:start(),
     lager:set_loglevel(lager_backend_console, debug),
     case Options of
-        #{test := yes} ->
+        #{test := "yes"} ->
             stub(Directory, Options);
         _ ->
             start(Directory, Options)
