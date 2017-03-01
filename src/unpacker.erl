@@ -40,7 +40,7 @@ unpacker(Directory, Options) ->
     Config = get_config(Options),
     Rules = rules(Config),
     Settings = settings(Config),
-    Files = probe_directory(Directory),
+    Files = probe_directory(Directory, Settings),
     Guessit = guessit(Directory, Settings),
     lager:info("Guessit:~p~n", [Guessit]),
     case match(Guessit, Rules) of
@@ -120,6 +120,9 @@ build_settings([[{"guessit", GuessitOptions}]|Rest], Settings) ->
     GuessitOptionsMap = maps:from_list(GuessitOptions),
     UpdatedSettings = maps:put(guessit, GuessitOptionsMap, Settings),
     build_settings(Rest, UpdatedSettings);
+build_settings([[{"regex", Regex}]|Rest], Settings) ->
+    UpdatedSettings = maps:put(regex, Regex, Settings),
+    build_settings(Rest, UpdatedSettings);
 build_settings([Setting|Rest], Settings) ->
     lager:warning("Unsupported setting found:~p~n", [Setting]),
     build_settings(Rest, Settings).
@@ -166,7 +169,15 @@ verify_rule_options(#{"type" := _, "extraction_location" := _}) ->
 verify_rule_options(_RuleOptions) ->
     false.
 
-probe_directory(Directory) ->
+probe_directory(Directory, Settings) ->
+    RegexVideo =
+    case Settings of
+        #{regex := Regex} ->
+            Regex;
+        _ ->
+            ?RegexVideo
+    end,
+
     RarFun =
     fun(RarFile, Acc) ->
         VideoFiles = unrar:list(RarFile),
@@ -177,7 +188,7 @@ probe_directory(Directory) ->
     fun(VideoFile, Acc) ->
         Acc ++ [VideoFile]
     end,
-    VideoFiles = filelib:fold_files(Directory, ?RegexVideo, true, VideoFun, []),
+    VideoFiles = filelib:fold_files(Directory, RegexVideo, true, VideoFun, []),
     #{rar_files => RarFiles, video_files => VideoFiles}.
 
 guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
