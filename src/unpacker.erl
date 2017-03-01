@@ -36,14 +36,12 @@ unpacker(Directory, Options) ->
     application:start(yamerl),
     lager:start(),
     lager:set_loglevel(lager_backend_console, debug),
-    ok = validate(Directory),
-    Config = get_config(Options),
-    Rules = rules(Config),
-    Settings = settings(Config),
+    ok = validate_dir(Directory),
+    {Rules, Settings} = unpacker_config:get(Options),
     Files = probe_directory(Directory, Settings),
     Guessit = guessit(Directory, Settings),
     lager:info("Guessit:~p~n", [Guessit]),
-    case match(Guessit, Rules) of
+    case unpacker_rules:match(Guessit, Rules) of
         {match, Rule, ExtractionLocation} ->
             lager:info("Found matching rule:~p~n", [Rule]),
             Destination = create_final_destination(Guessit, ExtractionLocation),
@@ -53,7 +51,7 @@ unpacker(Directory, Options) ->
             halt(?ERuleMatch)
     end.
 
-validate(Directory) ->
+validate_dir(Directory) ->
     case filelib:is_dir(Directory) of
         true ->
             ok;
@@ -61,113 +59,6 @@ validate(Directory) ->
             lager:error("Directory doesn't exists:~p~n", [Directory]),
             erlang:halt(?ENoDir)
     end.
-
-get_config(#{config_file := ConfigFile}) ->
-    %% check for config file in Options
-    case filelib:is_file(ConfigFile) of
-        true ->
-            read_config(ConfigFile);
-        false ->
-            lager:error("User supplied config file not found:~p~n", [ConfigFile]),
-            erlang:halt()
-    end;
-get_config(_Options) ->
-    %% Use default path for config file
-    {ok, DefaultPath} = file:get_cwd(),
-    ConfigFile = filename:join([DefaultPath, ?Config]),
-    case filelib:is_file(ConfigFile) of
-        true ->
-            read_config(ConfigFile);
-        false ->
-            lager:error("Default config file not found:~p~n", [ConfigFile]),
-            erlang:halt()
-    end.
-
-read_config(ConfigFile) ->
-    case yamerl_constr:file(ConfigFile) of
-        [] ->
-            lager:error("No data found in config file:~p~n", [ConfigFile]),
-            erlang:halt(?ENoCfgData);
-        [Config] ->
-            lager:debug("Found config data:~p~n", [Config]),
-            Config;
-        _Config ->
-            lager:error("To many yaml documents found in config file:~p~n",
-                        [ConfigFile]),
-            erlang:halt(?EYamlDocs)
-    end.
-
-settings(Config) ->
-    case find_settings(Config) of
-        {ok, Settings} ->
-            lager:info("Settings:~p~n", [Settings]),
-            build_settings(Settings, #{});
-        error ->
-            lager:error("No settings data found in config:~p~n", [Config]),
-            erlang:halt(?ENoSettingsData)
-    end.
-
-find_settings([]) ->
-    error;
-find_settings([{"settings", Settings}|_Rest]) ->
-    {ok, Settings};
-find_settings([_|Rest]) ->
-    find_settings(Rest).
-
-build_settings([], Settings) ->
-    Settings;
-build_settings([[{"guessit", GuessitOptions}]|Rest], Settings) ->
-    GuessitOptionsMap = maps:from_list(GuessitOptions),
-    UpdatedSettings = maps:put(guessit, GuessitOptionsMap, Settings),
-    build_settings(Rest, UpdatedSettings);
-build_settings([[{"regex", Regex}]|Rest], Settings) ->
-    UpdatedSettings = maps:put(regex, Regex, Settings),
-    build_settings(Rest, UpdatedSettings);
-build_settings([Setting|Rest], Settings) ->
-    lager:warning("Unsupported setting found:~p~n", [Setting]),
-    build_settings(Rest, Settings).
-
-rules(Config) ->
-    case find_rules(Config) of
-        {ok, Rules} ->
-            lager:info("Rules:~p~n", [Rules]),
-            case verify_rules(Rules) of
-                {error, Reason} ->
-                    lager:error("Failed to verify Rules:~p~nConfig"
-                                ":~p~nReason:~p~n",
-                                [Rules, Config, Reason]),
-                    erlang:halt(?EVerifyRules);
-                MapRules ->
-                    MapRules
-            end;
-        {error, Reason} ->
-            lager:error("Failed to parse rules in config"
-                        ":~p~nError:~p~n", [Config, Reason]),
-            erlang:halt(?EParseRules)
-    end.
-find_rules([]) ->
-    {error, "No Rules found"};
-find_rules([{"rules", Rules}|_Rest]) ->
-    {ok, Rules};
-find_rules([_|Rest]) ->
-    find_rules(Rest).
-
-verify_rules([]) ->
-    [];
-verify_rules([[{Rule, RuleOptions}]|Rest]) ->
-    RuleOptionsMap = maps:from_list(RuleOptions),
-    case verify_rule_options(RuleOptionsMap) of
-        false ->
-            {error, "Missing mandatory fields in rule: " ++ Rule};
-        true ->
-            [#{rule => Rule, rule_opts => RuleOptionsMap}] ++
-            verify_rules(Rest)
-    end.
-
-verify_rule_options(#{"type" := _, "extraction_location" := _}) ->
-    true;
-verify_rule_options(_RuleOptions) ->
-    false.
 
 probe_directory(Directory, Settings) ->
     RegexVideo =
@@ -212,69 +103,6 @@ guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
 guessit(_, Settings) ->
     lager:error("No guessit settings found in Settings data:~p~n", [Settings]),
     erlang:halt(?ENoGuessitSettings).
-
-match(_, []) ->
-    {error, "No rule matching Guessit information"};
-match(#{?GuessitType := ?GuessitTv}=Guessit,
-      [#{rule := Rule, rule_opts :=
-      #{"type" := ?RuleTv,
-        "extraction_location" := ExtractionLocation}=RuleOptions}|Rest]) ->
-    lager:info("Processing Rule:~p~nRule Options:~p~n", [Rule, RuleOptions]),
-    case match_rule_options(maps:to_list(RuleOptions), Guessit) of
-        true ->
-            {match, Rule, ExtractionLocation};
-        false ->
-            match(Guessit, Rest)
-    end;
-match(Guessit, [_Rule|Rest]) ->
-    match(Guessit, Rest).
-
-match_rule_options([], _Guessit) ->
-    true;
-match_rule_options([{"screen_size", RuleScreenSize}| Rest],
-                   #{?GuessitScreenSize := GuessitScreenSize}=Guessit) ->
-    {Range, RuleScreenSizeInt} = split_screen_size(RuleScreenSize),
-    {_, GuessitScreenSizeInt} = split_screen_size(bitstring_to_list(GuessitScreenSize)),
-    lager:info("Range:~p GuessitScreenSize:~p RuleScreenSize:~p",
-               [Range, GuessitScreenSizeInt, RuleScreenSizeInt]),
-    case Range of
-        "-" ->
-            if
-                GuessitScreenSizeInt =< RuleScreenSizeInt ->
-                    match_rule_options(Rest, Guessit);
-                true ->
-                    false
-            end;
-        "+" ->
-            if
-                GuessitScreenSizeInt >= RuleScreenSizeInt ->
-                    match_rule_options(Rest, Guessit);
-                true ->
-                    false
-            end;
-        no_range ->
-            if
-                GuessitScreenSizeInt == RuleScreenSizeInt ->
-                    match_rule_options(Rest, Guessit);
-                true ->
-                    false
-            end
-    end;
-match_rule_options([_RuleOption|Rest], Guessit) ->
-    match_rule_options(Rest, Guessit).
-
-split_screen_size(ScreenSize) ->
-    case string:substr(ScreenSize, string:len(ScreenSize), 1) of
-        "-" ->
-            {"-", list_to_integer(string:substr(ScreenSize, 1,
-                                                string:len(ScreenSize)-2))};
-        "+" ->
-            {"+", list_to_integer(string:substr(ScreenSize, 1,
-                                                string:len(ScreenSize)-2))};
-        "p" ->
-            {no_range, list_to_integer(string:substr(ScreenSize, 1,
-                                                     string:len(ScreenSize)-1))}
-    end.
 
 create_final_destination(#{?GuessitType := ?GuessitTv,
                            ?GuessitSeason := GuessitSeason,
