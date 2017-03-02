@@ -1,17 +1,11 @@
-unpacker
-========
+# unpacker
 
-Usage of unpacker.ksh
-  -torrent <torret name>            [M]   Name/folder of the torrent
-  -torrentpath <path to torrent>    [M]   Path to torrent excluding name/folder
-  -envfile <file>                   [O]   Used to output env variables to files
-                                          usable for Jenkins
-  -guessitopt "<guessit options>"   [O]   Guessit passthrough options
-  -no                               [O]   Dummys the script, for debuging
-  -tvfolder <folder>                [MO]  Extraction path for TvShows
-  -moviefolder <folder>             [MO]  Extraction path for Movies
-                                          If only -tvfolder or -moviefolder is
-                                          is present type will be forced to that type
-  
-  -help                                   show this help information
-M=mandatory, O=optional
+## Build
+rebar3 compile
+
+## Usage
+| Flags        | Requirement     | Description  |
+| ------------- |:-------------:| -----:|
+|\<directory\>|[M]|Path to directory containing files to be moved or unpacked|
+|-test yes|[O]|To execute unpacker without actually unpacking/moving files|
+|-config <path to config file>|[O]|Path to config files|
