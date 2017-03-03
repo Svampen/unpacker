@@ -13,7 +13,22 @@
 -include_lib("mockgyver/include/mockgyver.hrl").
 
 %% API
--export([unpacker/2]).
+-export([main/1]).
+
+main([Directory|Rest]) ->
+    Options = build_options(Rest, #{}),
+    io:format("options:~p~n", [Options]),
+    unpacker(Directory, Options).
+
+build_options([], Options) ->
+    Options;
+build_options(["-test", Test|Rest], Options) ->
+    build_options(Rest, maps:put(test, Test, Options));
+build_options(["-config", ConfigFile|Rest], Options) ->
+    build_options(Rest, maps:put(config_file, ConfigFile, Options));
+build_options(Options, _) ->
+    io:format("Unsupported options found:~p~n", [Options]),
+    erlang:halt(1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -99,7 +114,7 @@ guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
             StreamRef = gun:get(ConnPid, "/?filename=" ++ DirectoryName),
             receive
                 {gun_data, ConnPid, StreamRef, fin, Response} ->
-                    jiffy:decode(Response, [return_maps])
+                    jsx:decode(Response, [return_maps])
             after
                 2000 ->
                     lager:error("Connection to guessit timed out~n"),

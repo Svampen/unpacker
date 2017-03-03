@@ -1,7 +1,9 @@
 # unpacker
 
 ## Build
-rebar3 compile
+make
+
+This produces a self-contained escript called 'unpacker' under _build/default/bin
 
 ## Usage
 | Flags        | Requirement     | Description  |
