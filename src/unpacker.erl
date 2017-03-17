@@ -52,14 +52,6 @@ unpacker(Directory, Options) ->
     application:start(yamerl),
     lager:start(),
     lager:set_loglevel(lager_backend_console, debug),
-    case Options of
-        #{test := "yes"} ->
-            stub(Directory, Options);
-        _ ->
-            start(Directory, Options)
-    end.
-
-start(Directory, Options) ->
     ok = validate_dir(Directory),
     {Rules, Settings} = unpacker_config:get(Options),
     Files = probe_directory(Directory, Settings),
@@ -69,7 +61,7 @@ start(Directory, Options) ->
         {match, Rule, ExtractionLocation} ->
             lager:info("Found matching rule:~p~n", [Rule]),
             Destination = create_final_destination(Guessit, ExtractionLocation),
-            unpack(Directory, Files, Destination);
+            unpack(Directory, Files, Destination, Options);
         {error, Reason} ->
             lager:error("Match error:~p~n", [Reason]),
             halt(?ERuleMatch)
@@ -144,11 +136,32 @@ create_final_destination(#{?GuessitType := ?GuessitTv,
 create_final_destination(#{?GuessitType := ?GuessitMovie,
                            ?GuessitTitle := GuessitTitle},
                          ExtractionLocation) ->
-    Title = string:join(string:tokens(bitstring_to_list(GuessitTitle), " "), "."),
+    GuessitTitleString = bitstring_to_list(GuessitTitle),
+    Title = string:join(string:tokens(GuessitTitleString, " "), "."),
     filename:join([ExtractionLocation, Title]).
 
 unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
-       Destination) ->
+       Destination, #{test := "yes"}) ->
+    lager:info("Would have ensured that ~p exists", [Destination]),
+    lists:foreach(
+        fun(#{rar_file := RarFile,
+                video_files := RarVideoFiles}) ->
+            lager:info("Would have extracted from Rar file:~p~n"
+                       "Video files:~p~n",
+                       [RarFile, RarVideoFiles]);
+           (_) ->
+               ok
+        end,
+        RarFiles),
+    lists:foreach(
+        fun(VideoFile) ->
+            lager:info("Would have copied VideoFile(~p) to destination:~p~n",
+                       [VideoFile, Destination])
+        end,
+        VideoFiles),
+    ok;
+unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
+       Destination, _Options) ->
     lager:info("Ensuring that Destination exists:~p~n", [Destination]),
     case filelib:is_dir(Destination) of
         true ->
@@ -175,20 +188,3 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
         end,
         VideoFiles),
     ok.
-
-%% stub functions
-stub(Directory, Options) ->
-    ?MOCK(fun() ->
-        ?WHEN(unrar:extract(RarFile, RarVideoFiles, Destination) ->
-              lager:info("Extracting from ~p to ~p the following files:~p~n",
-                         [RarFile, RarVideoFiles, Destination])),
-        ?WHEN(unpacker_misc:copy(VideoFile, Destination) ->
-              lager:info("Coping ~p to ~p~n", [VideoFile, Destination])),
-        ?WHEN(unpacker:halt(Status) ->
-              begin
-              lager:info("Halting erlang with status:~p in 2 seconds~n",
-                         [Status]),
-              timer:sleep(2000)
-              end),
-        start(Directory, Options)
-        end).
