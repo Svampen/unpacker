@@ -10,7 +10,6 @@
 -author("Stefan Hagdahl").
 
 -include("unpacker.hrl").
--include_lib("mockgyver/include/mockgyver.hrl").
 
 %% API
 -export([main/1]).
