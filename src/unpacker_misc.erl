@@ -14,6 +14,8 @@
          copy/2]).
 
 halt(Status) ->
+    %% Fixes issue that lager can't write all logs before erlang terminates
+    timer:sleep(2000),
     erlang:halt(Status).
 
 copy(SourceFile, TargerDestination) ->

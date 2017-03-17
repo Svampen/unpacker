@@ -66,7 +66,9 @@ unpacker(Directory, Options) ->
         {error, Reason} ->
             lager:error("Match error:~p~n", [Reason]),
             halt(?ERuleMatch)
-    end.
+    end,
+    %% Fixes issue that lager can't write all logs before erlang terminates
+    timer:sleep(2000).
 
 validate_dir(Directory) ->
     case filelib:is_dir(Directory) of
