@@ -115,9 +115,9 @@ match_rule_options([{"screen_size", RuleScreenSize}|Rest],
                     false
             end
     end;
-match_rule_options([{"regex", Regex}|Rest], #{?GuessitTitle := Title}=Guessit) ->
-    TitleString = bitstring_to_list(Title),
-    case re:run(TitleString, Regex) of
+match_rule_options([{"regex", Regex}|Rest], #{?GuessitName := Name}=Guessit) ->
+    NameString = bitstring_to_list(Name),
+    case re:run(NameString, Regex) of
         {match, _} ->
             match_rule_options(Rest, Guessit);
         nomatch ->

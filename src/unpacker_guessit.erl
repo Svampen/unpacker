@@ -20,7 +20,9 @@ guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}, Options) ->
             receive
                 {gun_data, ConnPid, StreamRef, fin, Response} ->
                     GuessitData = jsx:decode(Response, [return_maps]),
-                    update_guessit(GuessitData, Options)
+                    UpdatedGuessitData = change_type(GuessitData, Options),
+                    add(UpdatedGuessitData, ?GuessitName,
+                        list_to_bitstring(DirectoryName))
             after
                 ?GuessitTimeout ->
                     lager:error("Connection to guessit timed out~n"),
@@ -34,23 +36,23 @@ guessit(_, Settings, _Options) ->
     lager:error("No guessit settings found in Settings data:~p~n", [Settings]),
     unpacker_misc:halt(?ENoGuessitSettings).
 
-update_guessit(GuessitData, #{type := movie}) ->
-    case maps:update(?GuessitType, ?GuessitMovie, GuessitData) of
-        {badKey, Key} ->
-            lager:error("Couldn't update type ~p in key ~p for "
-                        "guessit info:~p~n", [movie, Key, GuessitData]),
-            unpacker_misc:halt(?EUpdateGuessitType);
-        UpdatedGuessitData ->
-            UpdatedGuessitData
-    end;
-update_guessit(GuessitData, #{type := tv}) ->
-    case maps:update(?GuessitType, ?GuessitEpisode, GuessitData) of
-        {badKey, Key} ->
-            lager:error("Couldn't update type ~p in key ~p for "
-                        "guessit info:~p~n", [tv, Key, GuessitData]),
-            unpacker_misc:halt(?EUpdateGuessitType);
-        UpdatedGuessitData ->
-            UpdatedGuessitData
-    end;
-update_guessit(GuessitData, _Options) ->
+
+change_type(GuessitData, #{type := movie}) ->
+    update(GuessitData, ?GuessitType, ?GuessitMovie);
+change_type(GuessitData, #{type := tv}) ->
+    update(GuessitData, ?GuessitType, ?GuessitEpisode);
+change_type(GuessitData, _Options) ->
     GuessitData.
+
+update(GuessitData, Key, Value) ->
+    case maps:update(Key, Value, GuessitData) of
+        {badKey, Key} ->
+            lager:error("Couldn't update value ~p in key ~p for "
+                        "guessit info:~p~n", [Value, Key, GuessitData]),
+            unpacker_misc:halt(?EUpdateGuessitType);
+        UpdatedGuessitData ->
+            UpdatedGuessitData
+    end.
+
+add(GuessitData, Key, Value) ->
+    maps:put(Key, Value, GuessitData).
