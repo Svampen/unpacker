@@ -38,5 +38,8 @@
 -define(ENoConfigFile, 9).
 -define(ENoGuessitSettings, 10).
 -define(ENoSettingsData, 11).
+-define(EUpdateGuessitType, 12).
 
 -define(GuessitTimeout, 10000).
+
+-define(UnknownSeason, "S00").

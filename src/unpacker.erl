@@ -23,9 +23,11 @@ main([Directory|Rest]) ->
 build_options([], Options) ->
     Options;
 build_options(["-test", Test|Rest], Options) ->
-    build_options(Rest, maps:put(test, Test, Options));
+    build_options(Rest, maps:put(test, list_to_atom(Test), Options));
 build_options(["-config", ConfigFile|Rest], Options) ->
     build_options(Rest, maps:put(config_file, ConfigFile, Options));
+build_options(["-type", Type|Rest], Options) ->
+    build_options(Rest, maps:put(type, list_to_atom(Type), Options));
 build_options(Options, _) ->
     io:format("Unsupported options found:~p~n", [Options]),
     erlang:halt(1).
@@ -55,7 +57,7 @@ unpacker(Directory, Options) ->
     ok = validate_dir(Directory),
     {Rules, Settings} = unpacker_config:get(Options),
     Files = probe_directory(Directory, Settings),
-    Guessit = guessit(Directory, Settings),
+    Guessit = unpacker_guessit:guessit(Directory, Settings, Options),
     lager:info("Guessit:~p~n", [Guessit]),
     case unpacker_rules:match(Guessit, Rules) of
         {match, Rule, ExtractionLocation} ->
@@ -98,39 +100,26 @@ probe_directory(Directory, Settings) ->
     VideoFiles = filelib:fold_files(Directory, RegexVideo, true, VideoFun, []),
     #{rar_files => RarFiles, video_files => VideoFiles}.
 
-guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
-    DirectoryName = filename:basename(Directory),
-    case gun:open(IP, Port) of
-        {ok, ConnPid} ->
-            {ok, _} = gun:await_up(ConnPid),
-            StreamRef = gun:get(ConnPid, "/?filename=" ++ DirectoryName),
-            receive
-                {gun_data, ConnPid, StreamRef, fin, Response} ->
-                    jsx:decode(Response, [return_maps])
-            after
-                ?GuessitTimeout ->
-                    lager:error("Connection to guessit timed out~n"),
-                    unpacker_misc:halt(?EGuessitTimeout)
-            end;
-        {error, Reason} ->
-            lager:info("Failed to open connection to guessit:~p~n", [Reason]),
-            unpacker_misc:halt(?EGuessitConnect)
-    end;
-guessit(_, Settings) ->
-    lager:error("No guessit settings found in Settings data:~p~n", [Settings]),
-    unpacker_misc:halt(?ENoGuessitSettings).
-
 create_final_destination(#{?GuessitType := ?GuessitTv,
-                           ?GuessitSeason := GuessitSeason,
-                           ?GuessitTitle := GuessitTitle},
+                           ?GuessitTitle := GuessitTitle}=Guessit,
                          ExtractionLocation) ->
-    Title = string:join(string:tokens(bitstring_to_list(GuessitTitle), " "), "."),
+    GuessitTitleString = bitstring_to_list(GuessitTitle),
+    Title = string:join(string:tokens(GuessitTitleString, " "), "."),
     Season =
-    if
-        GuessitSeason < 10 ->
-            lists:concat(["S0", GuessitSeason]);
-        true ->
-            lists:concat(["S", GuessitSeason])
+    case maps:get(?GuessitSeason, Guessit, undefined) of
+        undefined ->
+            lager:warning("No season info found for Guessit:~p~n", [Guessit]),
+            ?UnknownSeason;
+        GuessitSeason when is_integer(GuessitSeason) ->
+            if GuessitSeason < 10 ->
+                lists:concat(["S0", GuessitSeason]);
+                true ->
+                    lists:concat(["S", GuessitSeason])
+            end;
+        GuessitSeason ->
+            lager:error("Unknown season value ~p for Guessit:~p~n",
+                        [GuessitSeason, Guessit]),
+            ?UnknownSeason
     end,
     filename:join([ExtractionLocation, Title, Season]);
 create_final_destination(#{?GuessitType := ?GuessitMovie,
@@ -141,7 +130,7 @@ create_final_destination(#{?GuessitType := ?GuessitMovie,
     filename:join([ExtractionLocation, Title]).
 
 unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
-       Destination, #{test := "yes"}) ->
+       Destination, #{test := yes}) ->
     lager:info("Would have ensured that ~p exists", [Destination]),
     lists:foreach(
         fun(#{rar_file := RarFile,
