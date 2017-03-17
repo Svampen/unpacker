@@ -38,3 +38,5 @@
 -define(ENoConfigFile, 9).
 -define(ENoGuessitSettings, 10).
 -define(ENoSettingsData, 11).
+
+-define(GuessitTimeout, 10000).

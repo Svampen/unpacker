@@ -116,7 +116,7 @@ guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}) ->
                 {gun_data, ConnPid, StreamRef, fin, Response} ->
                     jsx:decode(Response, [return_maps])
             after
-                2000 ->
+                ?GuessitTimeout ->
                     lager:error("Connection to guessit timed out~n"),
                     unpacker_misc:halt(?EGuessitTimeout)
             end;
