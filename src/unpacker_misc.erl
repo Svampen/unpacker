@@ -10,14 +10,9 @@
 -author("Stefan Hagdahl").
 
 %% API
--export([halt/1,
-         copy/2]).
+-export([halt/1]).
 
 halt(Status) ->
     %% Fixes issue that lager can't write all logs before erlang terminates
     timer:sleep(2000),
     erlang:halt(Status).
-
-copy(SourceFile, TargerDestination) ->
-    CopyCommand = lists:concat(["cp ", SourceFile, " ", TargerDestination]),
-    os:cmd(CopyCommand).

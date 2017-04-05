@@ -116,8 +116,8 @@ create_final_destination(#{?GuessitType := ?GuessitTv,
         GuessitSeason when is_integer(GuessitSeason) ->
             if GuessitSeason < 10 ->
                 lists:concat(["S0", GuessitSeason]);
-                true ->
-                    lists:concat(["S", GuessitSeason])
+            true ->
+                lists:concat(["S", GuessitSeason])
             end;
         GuessitSeason ->
             lager:error("Unknown season value ~p for Guessit:~p~n",
@@ -176,7 +176,7 @@ unpack(_Directory, #{rar_files := RarFiles, video_files := VideoFiles},
         fun(VideoFile) ->
             lager:info("Copying VideoFile(~p) to destination:~p~n",
                        [VideoFile, Destination]),
-            unpacker_misc:copy(VideoFile, Destination)
+            file:copy(VideoFile, filename:join(Destination, filename:basename(VideoFile)))
         end,
         VideoFiles),
     ok.
