@@ -126,6 +126,9 @@ match_rule_options([{"regex", Regex}|Rest], #{?GuessitName := Name}=Guessit) ->
 match_rule_options([_RuleOption|Rest], Guessit) ->
     match_rule_options(Rest, Guessit).
 
+split_screen_size("4K") ->
+    split_screen_size("2160p");
+
 split_screen_size(ScreenSize) ->
     case string:substr(ScreenSize, string:len(ScreenSize), 1) of
         "-" ->
