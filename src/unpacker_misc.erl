@@ -10,12 +10,7 @@
 -author("Stefan Hagdahl").
 
 %% API
--export([halt/1,
-         copy/2]).
+-export([halt/1]).
 
 halt(Status) ->
     erlang:halt(Status).
-
-copy(SourceFile, TargerDestination) ->
-    CopyCommand = lists:concat(["cp ", SourceFile, " ", TargerDestination]),
-    os:cmd(CopyCommand).
