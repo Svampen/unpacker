@@ -16,7 +16,8 @@ guessit(Directory, #{guessit := #{"ip" := IP, "port" := Port}}, Options) ->
     case gun:open(IP, Port) of
         {ok, ConnPid} ->
             {ok, _} = gun:await_up(ConnPid),
-            StreamRef = gun:get(ConnPid, "/?filename=" ++ DirectoryName),
+            StreamRef =
+		gun:get(ConnPid, "/?filename=" ++ http_uri:encode(DirectoryName)),
             receive
                 {gun_data, ConnPid, StreamRef, fin, Response} ->
                     GuessitData = jsx:decode(Response, [return_maps]),
