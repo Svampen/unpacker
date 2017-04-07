@@ -43,5 +43,6 @@
 -define(EUpdateGuessitType, 12).
 
 -define(GuessitTimeout, 10000).
+-define(GuessitRetries, 5).
 
 -define(UnknownSeason, "S00").
