@@ -105,7 +105,9 @@ create_final_destination(#{?GuessitType := ?GuessitTv,
                            ?GuessitTitle := GuessitTitle}=Guessit,
                          ExtractionLocation) ->
     GuessitTitleString = bitstring_to_list(GuessitTitle),
-    Title = string:join(string:tokens(GuessitTitleString, " "), "."),
+    Year = maps:get(?GuessitYear, Guessit, ""),
+    GuessitTitleStringWYear = lists:concat([GuessitTitleString, " ", Year]),
+    Title = string:join(string:tokens(GuessitTitleStringWYear, " "), "."),
     Season =
     case maps:get(?GuessitSeason, Guessit, undefined) of
         undefined ->

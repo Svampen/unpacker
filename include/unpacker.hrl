@@ -22,6 +22,7 @@
 -define(GuessitEpisode, <<"episode">>).
 -define(GuessitTitle, <<"title">>).
 -define(GuessitName, <<"name">>).
+-define(GuessitYear, <<"year">>).
 
 -define(RuleTv, "tv").
 -define(RuleMovie, "movie").
